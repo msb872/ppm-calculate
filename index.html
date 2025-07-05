@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ابزار PPM پیشرفته</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      background-color: #f4f4f4;
+      text-align: center;
+      transition: background 0.4s, color 0.4s;
+    }
+    .dark-mode {
+      background-color: #222;
+      color: #eee;
+    }
+    .container, .welcome-box {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin: auto;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .dark-mode .container, .dark-mode .welcome-box {
+      background-color: #333;
+      color: #eee;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    table {
+      margin-top: 20px;
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      font-size: 13px;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    canvas {
+      margin: 30px auto;
+    }
+    #print-btn {
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      background-color: #007bff;
+      color: white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      font-size: 20px;
+      border: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+    #print-btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body onload="updateDateTime()">
+
+  <div class="welcome-box" id="welcome-screen">
+    <h2>🎉 به ابزار پیشرفته PPM خوش آمدید!</h2>
+    <p>طراح: مصیب خانی – کنترل کیفیت کارخانه یک ویک دشت مرغاب</p>
+    <button onclick="startApp()">شروع</button>
+  </div>
+
+  <div class="container" id="main-container" style="display:none;">
+    <div id="datetime"></div>
+    <button onclick="toggleDarkMode()">🌗 حالت شب/روز</button>
+
+    <h2>محاسبه مقدار ماده برای PPM</h2>
+    <input type="number" id="ppm" placeholder="PPM مورد نظر" />
+    <input type="number" id="purity" placeholder="درصد خلوص ماده" />
+    <input type="number" id="volume" placeholder="حجم محلول (mL)" />
+    <br />
+    <button onclick="calculate()">✅ محاسبه</button>
+    <button onclick="clearTable()">🧹 پاک کردن جدول</button>
+
+    <h2>📊 نمودار مقدار ماده (g)</h2>
+    <canvas id="ppmChart" width="400" height="200"></canvas>
+
+    <h2>🔁 تبدیل PPM به درصد با خلوص</h2>
+    <input type="number" id="ppmToPercentInput" placeholder="مقدار PPM" />
+    <input type="number" id="purityPPMToPercent" placeholder="درصد خلوص ماده" />
+    <br />
+    <button onclick="convertPPMtoPercent()">📐 محاسبه درصد</button>
+    <p id="ppmToPercentOutput"></p>
+
+    <h2>🔁 تبدیل درصد به PPM با خلوص</h2>
+    <input type="number" id="percentToPPMInput" placeholder="درصد ماده" />
+    <input type="number" id="purityPercentToPPM" placeholder="درصد خلوص ماده" />
+    <br />
+    <button onclick="convertPercentToPPM()">📐 محاسبه PPM</button>
+    <p id="percentToPPMOutput"></p>
+
+ <table id="result-table">
+      <thead>
+        <tr>
+          <th>PPM</th>
+          <th>خلوص (%)</th>
+          <th>حجم (mL)</th>
+          <th>ماده (mg)</th>
+          <th>ماده (g)</th>
+        </tr>
+      </thead>
+      <tbody id="result-body"></tbody>
+    </table>
+  </div>   
+
+  <button id="print-btn" onclick="printResult()">🖨</button>
+
+<!-- قبل از پایان body -->
+<script>
+  function startApp() {
+    document.getElementById("welcome-screen").style.display = "none";
+    document.getElementById("main-container").style.display = "block";
+  }
+
+  function updateDateTime() {
+    const now = new Date();
+    document.getElementById("datetime").innerText = "🕒 " + now.toLocaleString('fa-IR');
+    setTimeout(updateDateTime, 1000);
+  }
+
+  function toggleDarkMode() {
+    document.body.classList.toggle("dark-mode");
+  }
+
+  const ctx = document.getElementById('ppmChart').getContext('2d');
+  const chartData = {
+    labels: [],
+    datasets: [{
+      label: 'مقدار ماده (g)',
+      data: [],
+      backgroundColor: 'rgba(0, 123, 255, 0.5)'
+    }]
+  };
+  const ppmChart = new Chart(ctx, {
+    type: 'bar',
+    data: chartData
+  });
+
+  function updateChart(ppm, g) {
+    chartData.labels.push(ppm + " ppm");
+    chartData.datasets[0].data.push(g);
+    ppmChart.update();
+  }
+
+  function calculate() {
+    const ppm = parseFloat(document.getElementById("ppm").value);
+    const purity = parseFloat(document.getElementById("purity").value);
+    const volume = parseFloat(document.getElementById("volume").value);
+    if (ppm && purity && volume) {
+      const mg = (ppm * volume) / (purity / 100);
+      const g = mg / 1000;
+      const row = document.getElementById("result-body").insertRow();
+      row.insertCell(0).innerText = ppm;
+      row.insertCell(1).innerText = purity;
+      row.insertCell(2).innerText = volume;
+      row.insertCell(3).innerText = mg.toFixed(2);
+      row.insertCell(4).innerText = g.toFixed(4);
+      updateChart(ppm, parseFloat(g.toFixed(4)));
+      ["ppm", "purity", "volume"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("ppm").focus();
+    } else {
+      alert("لطفاً همه مقادیر را وارد کنید.");
+    }
+  }
+
+  function clearTable() {
+    document.getElementById("result-body").innerHTML = "";
+    chartData.labels = [];
+    chartData.datasets[0].data = [];
+    ppmChart.update();
+  }
+
+     function convertPPMtoPercent() {
+  const ppm = parseFloat(document.getElementById("ppmToPercentInput").value);
+  const purity = parseFloat(document.getElementById("purityPPMToPercent").value);
+
+  if (!isNaN(ppm) && !isNaN(purity) && ppm > 0 && purity > 0) {
+    const percent = (ppm * purity) / 1_000_000;
+
+    // نمایش دقیق با توجه به اندازه عدد
+    let displayValue = percent < 0.0001 
+      ? "< 0.0001٪ (بسیار کم)" 
+      : `${percent.toFixed(6)}٪`;
+
+    document.getElementById("ppmToPercentOutput").innerText =
+      `درصد ماده مؤثر: ${displayValue}`;
+  } else {
+    alert("لطفاً عدد معتبر برای PPM و خلوص وارد کنید.");
+  }
+}
+
+
+
+  
+
+
+  function convertPercentToPPM() {
+    const percent = parseFloat(document.getElementById("percentToPPMInput").value);
+    const purity = parseFloat(document.getElementById("purityPercentToPPM").value);
+    if (percent && purity) {
+      const ppm = (percent * purity * 10000) / 100;
+      document.getElementById("percentToPPMOutput").innerText = `مقدار PPM = ${ppm.toFixed(2)} ppm`;
+    } else {
+      alert("درصد و خلوص را وارد کنید.");
+    }
+  }
+
+  function printResult() {
+    const printWindow = window.open("", "", "width=800,height=600");
+    const tableHTML = document.getElementById("result-table").outerHTML;
+    const datetime = document.getElementById("datetime").innerText;
+    printWindow.document.write(`<html><head><title>چاپ جدول PPM</title></head><body style="text-align:center;font-family:Arial">`);
+    printWindow.document.write(`<h2>${datetime}</h2>`);
+    printWindow.document.write(tableHTML);
+    printWindow.document.write(`</body></html>`);
+    printWindow.document.close();
+    printWindow.print();
+  }
+</script>
+</body>
+</html>
